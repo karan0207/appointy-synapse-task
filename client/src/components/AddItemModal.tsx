@@ -10,12 +10,13 @@ interface AddItemModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  initialTab?: 'text' | 'link' | 'file';
 }
 
 type TabType = 'text' | 'link' | 'file';
 
-export default function AddItemModal({ isOpen, onClose, onSuccess }: AddItemModalProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('text');
+export default function AddItemModal({ isOpen, onClose, onSuccess, initialTab = 'text' }: AddItemModalProps) {
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [text, setText] = useState('');
   const [url, setUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -50,9 +51,16 @@ export default function AddItemModal({ isOpen, onClose, onSuccess }: AddItemModa
       setUrl('');
       setFile(null);
       setShowSuccess(false);
-      setActiveTab('text');
+      setActiveTab(initialTab);
     }
-  }, [isOpen]);
+  }, [isOpen, initialTab]);
+
+  // Update active tab when initialTab prop changes
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

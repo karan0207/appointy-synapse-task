@@ -21,8 +21,8 @@ export default function Header({ onAddClick }: HeaderProps) {
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
             <Link to="/">
-              <h1 className="text-2xl font-bold text-primary cursor-pointer hover:opacity-80">
-                ⚡ Synapse
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent cursor-pointer hover:opacity-90 tracking-tight transition-opacity">
+                Synapse
               </h1>
             </Link>
             <p className="ml-4 text-gray-500 text-sm hidden sm:block">

@@ -137,15 +137,75 @@ async function generateAndStoreEmbedding(itemId: string, item: any): Promise<voi
   try {
     console.log(`[Worker] Generating embedding for item ${itemId}`);
 
-    // Combine ALL available text for embedding: title, summary, text, OCR text
+    // Build comprehensive text for embedding with better structure
     const textParts: string[] = [];
     
-    if (item.title) textParts.push(`Title: ${item.title}`);
-    if (item.summary) textParts.push(`Summary: ${item.summary}`);
-    if (item.content?.text) textParts.push(`Content: ${item.content.text}`);
-    if (item.content?.ocrText) textParts.push(`Image Text: ${item.content.ocrText}`); // Include OCR text from images
+    // Add type context for better semantic understanding
+    if (item.type) {
+      textParts.push(`Type: ${item.type}`);
+    }
+    
+    // Title is most important - give it prominence
+    if (item.title) {
+      textParts.push(`Title: ${item.title}`);
+    }
+    
+    // Summary provides high-level context
+    if (item.summary) {
+      textParts.push(`Summary: ${item.summary}`);
+    }
+    
+    // Source URL for articles/links provides domain context
+    if (item.sourceUrl) {
+      try {
+        const domain = new URL(item.sourceUrl).hostname.replace('www.', '');
+        textParts.push(`Source: ${domain}`);
+      } catch {
+        // Invalid URL, skip
+      }
+    }
+    
+    // Main content - prioritize based on type
+    if (item.content?.text) {
+      // For notes, text is primary content
+      if (item.type === 'NOTE') {
+        textParts.push(`Content: ${item.content.text}`);
+      } else {
+        textParts.push(`Text: ${item.content.text}`);
+      }
+    }
+    
+    // OCR text from images is very valuable for search
+    if (item.content?.ocrText) {
+      textParts.push(`Image Text: ${item.content.ocrText}`);
+    }
+    
+    // Vision description is crucial for images without text
+    // Check if the text content is actually a vision description (starts with description-like text)
+    if (item.content?.text && item.type === 'IMAGE' && 
+        !item.content.text.startsWith('Image file:') && 
+        !item.content.text.startsWith('http')) {
+      // Likely a vision description
+      textParts.push(`Image Description: ${item.content.text}`);
+    }
+    
+    // Include HTML content if available (for articles)
+    if (item.content?.html && item.type === 'ARTICLE') {
+      // Extract text from HTML (simple version)
+      const htmlText = item.content.html
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (htmlText && htmlText.length > 20) {
+        textParts.push(`Article Content: ${htmlText.substring(0, 2000)}`);
+      }
+    }
 
-    const textToEmbed = textParts.join('\n\n').substring(0, 8000); // Limit length
+    // Combine with better formatting for semantic understanding
+    const textToEmbed = textParts
+      .filter(part => part && part.trim().length > 0)
+      .join('\n\n')
+      .substring(0, 8000); // Limit length for embedding models
 
     if (!textToEmbed.trim()) {
       console.log('[Worker] No text to embed, skipping');
@@ -283,43 +343,100 @@ async function processFileItem(itemId: string, item: any): Promise<void> {
         }
         
         const imageBuffer = await imageResponse.arrayBuffer();
-        const { data: { text } } = await worker.recognize(Buffer.from(imageBuffer));
+        
+        // Run OCR and vision description in parallel for better performance
+        const [ocrResult, imageDescription] = await Promise.allSettled([
+          worker.recognize(Buffer.from(imageBuffer)),
+          (async () => {
+            if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key_here') {
+              try {
+                const { describeImage } = await import('../services/openai.js');
+                return await describeImage(imageUrl);
+              } catch (error) {
+                console.log('[Worker] Could not describe image with vision model:', error);
+                return '';
+              }
+            }
+            return '';
+          })(),
+        ]);
         
         await worker.terminate();
         
+        const text = ocrResult.status === 'fulfilled' ? ocrResult.value.data.text : '';
+        const visionDescription = imageDescription.status === 'fulfilled' && typeof imageDescription.value === 'string' 
+          ? imageDescription.value 
+          : '';
+
+        // Combine OCR text and vision description for better search
+        const combinedDescription = visionDescription 
+          ? (text ? `${text}\n\n${visionDescription}` : visionDescription)
+          : text;
+
         if (text && text.trim()) {
           console.log(`[Worker] ✓ OCR extracted ${text.length} characters`);
           
           // Update content with OCR text
           await prisma.content.upsert({
             where: { itemId },
-            update: { ocrText: text.trim() },
+            update: { 
+              ocrText: text.trim(),
+              // Store vision description in text field if available
+              text: visionDescription || `Image file: ${item.title}`,
+            },
             create: {
               itemId,
               ocrText: text.trim(),
-              text: `Image file: ${item.title}`,
+              text: visionDescription || `Image file: ${item.title}`,
             },
           });
           
-          // Generate summary from OCR text if OpenAI is available
+          // Generate summary from combined text if OpenAI is available
           if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key_here') {
             try {
               const { generateSummary } = await import('../services/openai.js');
-              const summary = await generateSummary(text.trim().substring(0, 2000));
+              const summaryText = combinedDescription || text.trim();
+              const summary = await generateSummary(summaryText.substring(0, 2000));
               
               await prisma.item.update({
                 where: { id: itemId },
                 data: { summary },
               });
               
-              console.log(`[Worker] ✓ Generated summary from OCR text`);
+              console.log(`[Worker] ✓ Generated summary from OCR and vision`);
             } catch (error) {
-              console.log('[Worker] Could not generate summary from OCR:', error);
+              console.log('[Worker] Could not generate summary:', error);
             }
           }
         } else {
           console.log('[Worker] No text found in image');
+          
+          // If no OCR text but we have a vision description, use that
+          if (visionDescription) {
+            try {
+              await prisma.content.upsert({
+                where: { itemId },
+                update: { text: visionDescription },
+                create: {
+                  itemId,
+                  text: visionDescription,
+                },
+              });
+              
+              await prisma.item.update({
+                where: { id: itemId },
+                data: { summary: visionDescription },
+              });
+              
+              console.log(`[Worker] ✓ Stored image description from vision model`);
+            } catch (error) {
+              console.log('[Worker] Could not store image description:', error);
+            }
+          }
         }
+        
+        // Note: Vision description is already stored in content.text or summary above
+        // It will be picked up by generateAndStoreEmbedding automatically
       } catch (error: any) {
         // If Tesseract fails, log and continue (item will still be saved)
         console.warn(`[Worker] OCR failed (this is okay): ${error.message}`);

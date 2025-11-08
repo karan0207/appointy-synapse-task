@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom';
 
 export default function HomePage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [initialTab, setInitialTab] = useState<'text' | 'link' | 'file'>('text');
   const { items, loading, error, refetch } = useItems();
 
   const handleAddSuccess = () => {
@@ -56,7 +57,10 @@ export default function HomePage() {
             {/* Quick Actions */}
             <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
               <button
-                onClick={() => setIsAddModalOpen(true)}
+                onClick={() => {
+                  setInitialTab('text');
+                  setIsAddModalOpen(true);
+                }}
                 className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left group"
               >
                 <div className="flex items-center gap-3">
@@ -73,7 +77,10 @@ export default function HomePage() {
               </button>
 
               <button
-                onClick={() => setIsAddModalOpen(true)}
+                onClick={() => {
+                  setInitialTab('link');
+                  setIsAddModalOpen(true);
+                }}
                 className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left group"
               >
                 <div className="flex items-center gap-3">
@@ -90,7 +97,10 @@ export default function HomePage() {
               </button>
 
               <button
-                onClick={() => setIsAddModalOpen(true)}
+                onClick={() => {
+                  setInitialTab('file');
+                  setIsAddModalOpen(true);
+                }}
                 className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left group"
               >
                 <div className="flex items-center gap-3">
@@ -101,7 +111,7 @@ export default function HomePage() {
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">Upload File</p>
-                    <p className="text-sm text-gray-500">Add image or document</p>
+                    <p className="text-sm text-gray-500">Add image</p>
                   </div>
                 </div>
               </button>
@@ -145,6 +155,7 @@ export default function HomePage() {
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}
           onSuccess={handleAddSuccess}
+          initialTab={initialTab}
         />
       </div>
     </Layout>

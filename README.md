@@ -2,65 +2,72 @@
 
 **An intelligent second brain for capturing, organizing, and retrieving information.**
 
-Synapse is a web-based prototype that enables you to capture text, links, and files, automatically classify and enrich the content, visualize everything in a unified memory grid, and search using natural language queries.
+Synapse helps you capture text notes, web links, and images, automatically enriches them with AI-powered summaries and classifications, and lets you search through everything using natural language queries. Think of it as your personal knowledge base that understands what you're looking for, not just matching keywords.
 
----
+## What It Does
 
-## 🏗️ Architecture
+### 🎯 Core Features
 
-- **Frontend:** React + TypeScript + Tailwind CSS
-- **Backend API:** Express.js + TypeScript
-- **Worker:** BullMQ + Redis for async processing
-- **Database:** PostgreSQL with Prisma ORM
-- **Storage:** AWS S3 / Cloudflare R2
-- **Vector Search:** Qdrant/Pinecone/Weaviate
-- **AI/LLM:** OpenAI API
+- **Capture Anything**: Add text notes, save web links, or upload images
+- **AI-Powered Processing**: Automatic summarization, content classification, and smart tagging
+- **Semantic Search**: Find content by meaning, not just keywords. Ask "cooking tips" and find recipes even if they don't contain those exact words
+- **Image Understanding**: Upload images and search for them by what's in them (e.g., "monkey" finds images with monkeys, even without text)
+- **Organized View**: Beautiful grid layout showing all your captured items with previews
+- **User Management**: Secure authentication, profile management, and password changes
 
----
+### 🧠 How It Works
 
-## 📦 Repository Structure
+1. **Capture**: You add content through a simple interface
+2. **Process**: Background worker enriches content with AI (summaries, classifications, embeddings)
+3. **Search**: Use natural language to find what you're looking for
+4. **Retrieve**: Get relevant results ranked by relevance
 
-```
-project-synapse/
-├── client/          # React frontend
-├── server/          # Express API server
-├── worker/          # Background job processor
-├── shared/          # Shared types and utilities
-├── docker-compose.yml
-└── package.json     # Workspace root
-```
+## Tech Stack
 
----
+- **Frontend**: React + TypeScript + Tailwind CSS
+- **Backend**: Express.js + TypeScript
+- **Worker**: BullMQ + Redis for async processing
+- **Database**: PostgreSQL with Prisma ORM
+- **AI**: OpenAI API (or LocalAI for self-hosted)
+- **Search**: Hybrid semantic + keyword search with vector embeddings
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
 - **Node.js** >= 18.0.0
 - **npm** >= 9.0.0
-- **Docker** and **Docker Compose** (for local DB/Redis)
+- **Docker** and **Docker Compose** (for local database and Redis)
 
-### 1. Clone the Repository
+### Step 1: Clone and Install
 
 ```bash
 git clone <repository-url>
-cd project-synapse
-```
-
-### 2. Install Dependencies
-
-```bash
+cd secondbrain
 npm install
 ```
 
-This will install dependencies for all workspaces (client, server, worker, shared).
+This installs dependencies for all workspaces (client, server, worker, shared).
 
-### 3. Setup Environment Variables
+### Step 2: Start Infrastructure
 
-Create `.env` files for each service (examples below):
+Start PostgreSQL and Redis using Docker Compose:
+
+```bash
+docker-compose up -d
+```
+
+This starts:
+- PostgreSQL on `localhost:5432`
+- Redis on `localhost:6379`
+- LocalAI (optional) on `localhost:8080`
+
+### Step 3: Setup Environment Variables
+
+Create `.env` files in each service directory:
 
 **server/.env:**
-```bash
+```env
 DATABASE_URL="postgresql://synapse:synapse_dev_password@localhost:5432/synapse_db"
 REDIS_HOST=localhost
 REDIS_PORT=6379
@@ -69,253 +76,179 @@ NODE_ENV=development
 SESSION_SECRET=your_random_secret_here_change_in_production
 CLIENT_URL=http://localhost:5173
 
-# Option 1: Use LocalAI (free, runs locally in Docker)
-OPENAI_API_KEY=not-needed
-OPENAI_API_BASE=http://localhost:8080/v1
+# OpenAI Configuration (choose one)
+# Option 1: Use OpenAI API
+OPENAI_API_KEY=sk-your-openai-key-here
 
-# Option 2: Use OpenAI (requires API key)
-# OPENAI_API_KEY=sk-your-openai-key-here
-# OPENAI_API_BASE=https://api.openai.com/v1
+# Option 2: Use LocalAI (self-hosted, free)
+# OPENAI_API_KEY=not-needed
+# OPENAI_API_BASE=http://localhost:8080/v1
 ```
 
 **worker/.env:**
-```bash
+```env
 DATABASE_URL="postgresql://synapse:synapse_dev_password@localhost:5432/synapse_db"
 REDIS_HOST=localhost
 REDIS_PORT=6379
 API_URL=http://localhost:3001
 
-# Option 1: Use LocalAI (free, runs locally in Docker)
-OPENAI_API_KEY=not-needed
-OPENAI_API_BASE=http://localhost:8080/v1
-
-# Option 2: Use OpenAI (requires API key)
-# OPENAI_API_KEY=sk-your-openai-key-here
-# OPENAI_API_BASE=https://api.openai.com/v1
+# Same OpenAI configuration as server
+OPENAI_API_KEY=sk-your-openai-key-here
+# or for LocalAI:
+# OPENAI_API_KEY=not-needed
+# OPENAI_API_BASE=http://localhost:8080/v1
 ```
 
 **client/.env:**
-```bash
+```env
 VITE_API_URL=http://localhost:3001
 ```
 
-> **Note:** `OPENAI_API_KEY` is optional. Without it, AI features (summarization, classification, semantic search) will be disabled, but basic capture and viewing will still work.
+### Step 4: Setup Database
 
-### 4. Start Docker Services
-
-Start PostgreSQL, Redis, and LocalAI:
+Run database migrations:
 
 ```bash
-docker-compose up -d
-```
-
-Verify services are running:
-
-```bash
-docker-compose ps
-# Should see: synapse-postgres, synapse-redis, synapse-localai
-```
-
-**Note:** LocalAI takes 1-2 minutes to start first time (downloading models).
-
-Check LocalAI is ready:
-```bash
-curl http://localhost:8080/readiness
-# Should return: {"status":"ready"}
-```
-
-### 5. Setup Database with Prisma
-
-Run migrations to create the database schema:
-
-```bash
-cd server
-npx prisma migrate dev
-npx prisma generate
-cd ..
-```
-
-This creates tables for:
-- Users (with password hashing)
-- Items (notes, links, files)
-- Content (text, HTML, OCR)
-- Media (images, attachments)
-- Embeddings (vector search references)
-
-Optionally, open Prisma Studio to view the database:
-
-```bash
-cd server
-npx prisma studio
-```
-
-### 6. Start Development Servers
-
-**Option 1: Start all services together (recommended)**
-
-Open 3 terminal windows and run:
-
-```bash
-# Terminal 1: Backend API
-npm run dev:server
-
-# Terminal 2: Worker
-npm run dev:worker
-
-# Terminal 3: Frontend
-npm run dev:client
-```
-
-Services will be available at:
-- **Frontend:** http://localhost:5173
-- **Backend API:** http://localhost:3001
-- **Health Check:** http://localhost:3001/health
-
-### 7. Create Your First Account
-
-1. Open http://localhost:5173
-2. Click "Sign up"
-3. Enter your email, password (min 8 chars), and optional name
-4. You'll be automatically logged in
-
-### 8. Test the Features
-
-**Capture Text:**
-1. Click "+ Add Item" button
-2. Select "Text" tab
-3. Type anything: "Remember to buy groceries"
-4. Press Cmd+Enter (or click Add)
-5. Wait a few seconds for AI processing
-6. See the summary and classification!
-
-**Capture Link:**
-1. Click "+ Add Item"
-2. Select "Link" tab
-3. Paste a URL: `https://github.com/features`
-4. Wait for metadata extraction
-5. See the title, description, and preview image
-
-**Upload File:**
-1. Click "+ Add Item"
-2. Select "File" tab
-3. Drag & drop an image or document
-4. Watch the progress bar
-5. See your file in the grid
-
-**Semantic Search:**
-1. Add multiple items with different topics
-2. Use the search bar: "programming tips"
-3. See semantically similar results (not just keyword matching)
-4. Try: "cooking recipes", "productivity advice", etc.
-
-**Settings:**
-1. Click your email in the header
-2. Update your profile name
-3. Change your password
-
----
-
-## 📝 Development Workflow
-
-Follow the principles outlined in `instruction.md`:
-
-1. **Build one feature at a time** - complete vertical slices (UI → API → DB)
-2. **Test locally** before moving to the next feature
-3. **Format and lint** before committing
-4. **Use conventional commits** (`feat:`, `fix:`, `chore:`, etc.)
-
----
-
-## 🗄️ Database Commands
-
-```bash
-# Run migrations
 npm run db:migrate
-
-# Open Prisma Studio
-npm run db:studio
-
-# Reset database
-cd server && npx prisma migrate reset && cd ..
-
-# Generate Prisma Client
-cd server && npx prisma generate && cd ..
 ```
 
----
+This creates all necessary tables in PostgreSQL.
 
-## 🧪 Testing
+### Step 5: Start Development Servers
+
+Start all services in development mode:
 
 ```bash
-# Run linter
-npm run lint
-
-# Check formatting
-npm run format:check
-
-# Auto-fix formatting
-npm run format
+npm run dev
 ```
 
----
+This starts:
+- **Client**: `http://localhost:5173` (React frontend)
+- **Server**: `http://localhost:3001` (Express API)
+- **Worker**: Background job processor
 
-## 🏗️ Building for Production
-
+Or start individually:
 ```bash
-# Build all packages
-npm run build
-
-# Build specific workspace
-npm run build:client
-npm run build:server
-npm run build:worker
+npm run dev:client   # Frontend only
+npm run dev:server   # API only
+npm run dev:worker   # Worker only
 ```
 
----
+### Step 6: Create Your First Account
 
-## 📚 Documentation
+1. Open `http://localhost:5173` in your browser
+2. Click "Sign Up" and create an account
+3. Start capturing content!
 
-- **Problem Statement & Design:** See `problem.md`
-- **Development Rules:** See `instruction.md`
-- **Implementation Plan:** See `plan.md`
+## Project Structure
 
----
+```
+secondbrain/
+├── client/          # React frontend application
+│   ├── src/
+│   │   ├── components/    # Reusable UI components
+│   │   ├── pages/         # Page components
+│   │   ├── hooks/         # Custom React hooks
+│   │   └── context/       # React context providers
+│   └── package.json
+│
+├── server/          # Express.js API server
+│   ├── src/
+│   │   ├── controllers/   # Request handlers
+│   │   ├── routes/         # API route definitions
+│   │   ├── services/       # Business logic
+│   │   ├── middleware/     # Express middleware
+│   │   └── config/         # Configuration files
+│   └── package.json
+│
+├── worker/          # Background job processor
+│   ├── src/
+│   │   ├── jobs/          # Job processors
+│   │   ├── services/      # Processing services
+│   │   └── queue/         # Queue configuration
+│   └── package.json
+│
+├── shared/          # Shared TypeScript types
+│   └── package.json
+│
+├── docker-compose.yml    # Docker services configuration
+├── package.json          # Root workspace configuration
+└── README.md             # This file
+```
 
-## 🎯 MVP Features (100% Complete)
+## Available Scripts
 
-### Core Features ✅
-- [x] User authentication (signup, login, sessions)
-- [x] Capture text notes instantly
-- [x] Capture web links with auto-metadata
-- [x] Upload files (images, documents)
-- [x] Automatic content classification (NOTE, ARTICLE, TODO, etc.)
-- [x] AI-powered summarization
-- [x] Memory grid visualization with previews
-- [x] Semantic search with natural language
-- [x] Background job processing with BullMQ
-- [x] Vector embeddings for intelligent search
-- [x] User profile & settings
-- [x] Password management
+- `npm run dev` - Start all services in development mode
+- `npm run build` - Build all services for production
+- `npm run db:migrate` - Run database migrations
+- `npm run db:studio` - Open Prisma Studio (database GUI)
+- `npm run lint` - Lint all code
+- `npm run format` - Format all code with Prettier
 
-### Technology Stack
-- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, React Router
-- **Backend:** Express.js, TypeScript, Zod validation
-- **Database:** PostgreSQL with Prisma ORM
-- **Queue:** BullMQ + Redis
-- **AI:** OpenAI GPT-3.5-turbo & text-embedding-3-small
-- **Storage:** Local (S3/R2-ready)
-- **Auth:** express-session + bcrypt
-- **Vector Search:** In-memory (Qdrant/Pinecone-ready)
+## Features in Detail
 
----
+### Content Capture
+- **Text Notes**: Quick capture with instant storage
+- **Web Links**: Automatic metadata extraction (title, description, images)
+- **File Uploads**: Drag-and-drop interface for images and documents
 
-## 🤝 Contributing
+### AI Processing
+- **Summarization**: GPT-3.5 generates concise summaries
+- **Classification**: Automatic content type detection
+- **Embeddings**: Vector representations for semantic search
+- **Vision**: Image descriptions using GPT-4 Vision API
 
-This is a prototype project. Follow the coding guidelines in `instruction.md` when making changes.
+### Search
+- **Natural Language**: Ask questions in plain English
+- **Semantic Matching**: Finds conceptually similar content
+- **Type Filtering**: Automatically detects and filters by content type
+- **Hybrid Results**: Combines semantic and keyword search
 
----
+## Configuration Options
 
-## 📄 License
+### Using OpenAI API
+Set `OPENAI_API_KEY` in your `.env` files. This provides:
+- Text summarization
+- Content classification
+- Embedding generation
+- Image descriptions (vision models)
 
-Private project - All rights reserved.
+### Using LocalAI (Self-Hosted)
+Set `OPENAI_API_BASE=http://localhost:8080/v1` and download models. See `docker-compose.yml` for LocalAI setup.
 
+### Without AI
+The app works without AI, but with limited features:
+- No automatic summaries
+- No content classification
+- No semantic search
+- Basic keyword search only
+
+## Troubleshooting
+
+### Database Connection Issues
+- Ensure Docker containers are running: `docker-compose ps`
+- Check database URL in `.env` matches docker-compose.yml
+- Verify PostgreSQL is healthy: `docker-compose logs postgres`
+
+### Redis Connection Issues
+- Check Redis is running: `docker-compose ps`
+- Verify Redis port 6379 is available
+- Check Redis logs: `docker-compose logs redis`
+
+### Worker Not Processing
+- Ensure worker service is running: `npm run dev:worker`
+- Check Redis connection in worker logs
+- Verify OpenAI API key is set (if using AI features)
+
+### Search Not Working
+- Ensure embeddings are generated (check worker logs)
+- Verify OpenAI API key is configured
+- Check vector database has stored embeddings
+
+## License
+
+[Add your license here]
+
+## Contributing
+
+[Add contribution guidelines here]

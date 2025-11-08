@@ -47,12 +47,14 @@ export default function Sidebar({ onClose }: SidebarProps) {
   ];
 
   return (
-    <aside className="h-full w-64 bg-white border-r border-gray-200 flex flex-col shadow-lg lg:shadow-none">
+    <aside className="h-screen w-64 bg-white border-r border-gray-200 flex flex-col shadow-lg lg:shadow-none">
       {/* Logo */}
       <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-        <Link to="/" onClick={onClose}>
-          <h1 className="text-2xl font-bold text-primary">⚡ Synapse</h1>
-          <p className="text-xs text-gray-500 mt-1">Your intelligent second brain</p>
+        <Link to="/" onClick={onClose} className="group">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent tracking-tight">
+            Synapse
+          </h1>
+          <p className="text-xs text-gray-500 mt-0.5 font-medium">Your intelligent second brain</p>
         </Link>
         {/* Close button for mobile */}
         <button
@@ -94,17 +96,19 @@ export default function Sidebar({ onClose }: SidebarProps) {
 
       {/* User Info */}
       <div className="p-4 border-t border-gray-200">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+        <div className="flex items-start gap-3 mb-3">
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
             <span className="text-primary font-semibold text-sm">
               {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">
+            <p className="text-sm font-medium text-gray-900 truncate mb-1">
               {user?.name || 'User'}
             </p>
-            <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+            <p className="text-[10px] text-gray-500 truncate" title={user?.email || ''}>
+              {user?.email || ''}
+            </p>
           </div>
         </div>
         <div className="flex gap-2">

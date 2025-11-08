@@ -112,6 +112,74 @@ export async function analyzeText(text: string): Promise<TextAnalysis> {
 }
 
 /**
+ * Describe what's in an image using vision models
+ * This allows searching for images by their content, not just text
+ */
+export async function describeImage(imageUrl: string): Promise<string> {
+  try {
+    // Check if we're using LocalAI (which may not support vision)
+    const isLocalAI = process.env.OPENAI_API_BASE?.includes('localhost:8080') || 
+                      process.env.OPENAI_API_BASE?.includes('127.0.0.1:8080');
+    
+    if (isLocalAI) {
+      console.log('[OpenAI] ⚠️  Vision models not supported with LocalAI, skipping image description');
+      return '';
+    }
+
+    // Fetch image and convert to base64
+    const imageResponse = await fetch(imageUrl);
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
+    }
+    
+    const imageBuffer = await imageResponse.arrayBuffer();
+    const base64Image = Buffer.from(imageBuffer).toString('base64');
+    const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
+
+    // Use vision model to describe the image
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o', // or 'gpt-4-vision-preview' for older models
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a helpful assistant that describes images in detail. Describe what you see in the image, including objects, people, animals, text, colors, and any notable features. Be specific and concise (2-3 sentences).',
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Describe what you see in this image in detail.',
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${mimeType};base64,${base64Image}`,
+              },
+            },
+          ],
+        },
+      ],
+      max_tokens: 200,
+      temperature: 0.3,
+    });
+
+    const description = response.choices[0]?.message?.content?.trim() || '';
+    console.log(`[OpenAI] ✓ Image described: ${description.substring(0, 100)}...`);
+    return description;
+  } catch (error: any) {
+    // If vision model is not available, fall back gracefully
+    if (error?.message?.includes('gpt-4o') || error?.message?.includes('vision')) {
+      console.warn('[OpenAI] ⚠️  Vision model not available, skipping image description');
+      console.warn('[OpenAI] 💡 To enable image descriptions, use OpenAI API with gpt-4o or gpt-4-vision-preview');
+      return '';
+    }
+    console.error('[OpenAI] Error describing image:', error);
+    return '';
+  }
+}
+
+/**
  * Generate embeddings for semantic search (using OpenAI/LocalAI)
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
