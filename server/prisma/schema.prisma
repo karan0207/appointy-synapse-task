@@ -1,0 +1,107 @@
+// Goal: Define database schema for Project Synapse
+// Models: User, Item, Content, Media, Embedding
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  password  String   @default("") // Hashed password (temp default for migration)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  items Item[]
+
+  @@map("users")
+}
+
+model Item {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  type      ItemType
+  title     String?
+  summary   String?  @db.Text
+  sourceUrl String?  @map("source_url")
+  status    ItemStatus @default(PENDING)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   Content?
+  media     Media[]
+  embedding Embedding?
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@map("items")
+}
+
+model Content {
+  id      String  @id @default(cuid())
+  itemId  String  @unique @map("item_id")
+  text    String? @db.Text
+  ocrText String? @map("ocr_text") @db.Text
+  html    String? @db.Text
+
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("contents")
+}
+
+model Media {
+  id        String    @id @default(cuid())
+  itemId    String    @map("item_id")
+  s3Url     String    @map("s3_url")
+  mediaType MediaType @map("media_type")
+  width     Int?
+  height    Int?
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@map("media")
+}
+
+model Embedding {
+  id       String @id @default(cuid())
+  itemId   String @unique @map("item_id")
+  vectorId String @map("vector_id") // Reference to vector DB entry
+
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("embeddings")
+}
+
+enum ItemType {
+  NOTE
+  ARTICLE
+  PRODUCT
+  IMAGE
+  TODO
+  FILE
+}
+
+enum ItemStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+}

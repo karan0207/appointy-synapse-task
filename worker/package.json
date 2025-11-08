@@ -1,0 +1,26 @@
+{
+  "name": "@synapse/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint . --ext ts --report-unused-disable-directives --max-warnings 0"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.8.1",
+    "bullmq": "^5.1.8",
+    "dotenv": "^16.4.1",
+    "jsdom": "^23.2.0",
+    "openai": "^4.24.1",
+    "tesseract.js": "^5.0.4"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^21.1.6",
+    "@types/node": "^20.11.5",
+    "tsx": "^4.7.0"
+  }
+}
+
