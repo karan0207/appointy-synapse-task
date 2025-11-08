@@ -27,15 +27,24 @@ export default function ItemCard({ item }: ItemCardProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    const diffInDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
 
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    } else if (diffInHours < 168) { // 7 days
-      return date.toLocaleDateString('en-US', { weekday: 'short', hour: 'numeric' });
-    } else {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
+    // Format date (include year if older than 1 year)
+    const dateStr = date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: diffInDays > 365 ? 'numeric' : undefined
+    });
+
+    // Format time
+    const timeStr = date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true
+    });
+
+    // Always show both date and time
+    return `${dateStr} • ${timeStr}`;
   };
 
   const getPreviewText = () => {
@@ -89,7 +98,7 @@ export default function ItemCard({ item }: ItemCardProps) {
 
       {/* Footer */}
       <div className="flex justify-between items-center text-xs text-gray-500">
-        <span>{formatDate(item.createdAt)}</span>
+        <span>Created at {formatDate(item.createdAt)}</span>
         {item.sourceUrl && (
           <a
             href={item.sourceUrl}

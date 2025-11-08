@@ -4,6 +4,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import HomePage from './pages/HomePage';
+import SearchPage from './pages/SearchPage';
+import AllDataPage from './pages/AllDataPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import SettingsPage from './pages/SettingsPage';
@@ -62,6 +64,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <HomePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/search"
+            element={
+              <ProtectedRoute>
+                <SearchPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/all-data"
+            element={
+              <ProtectedRoute>
+                <AllDataPage />
               </ProtectedRoute>
             }
           />
