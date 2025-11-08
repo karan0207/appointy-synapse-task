@@ -23,6 +23,17 @@ npm run db:migrate
 npm run dev 
 ```
 
+## Service Ports
+
+The following services run on these ports:
+
+- **Frontend (React)**: `http://localhost:5173`
+- **Backend API Server**: `http://localhost:3001`
+- **PostgreSQL Database**: `localhost:5432`
+- **Redis**: `localhost:6379`
+- **LocalAI** (optional): `http://localhost:8080`
+- **Worker Service**: No exposed port (background service connecting to Redis)
+
 ## Database Migrations
 
 ### Run migrations:
@@ -78,7 +89,7 @@ npm start
 ## Login Credentials
 
 On frontend:
-- You can either signup new account or
-- Use this for login:
-  - email: testuser@gmail.com
-  - password: 12345678
+- You can signup new account 
+
+
+Try to add:  Links, Image and Tasks
