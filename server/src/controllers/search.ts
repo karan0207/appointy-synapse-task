@@ -96,25 +96,60 @@ async function performKeywordSearch(
       }
 
   if (searchQuery) {
-    const searchWords = extractKeyTerms(searchQuery);
+    const searchTerms = extractKeyTerms(searchQuery);
     
-        if (searchWords.length > 0) {
-          keywordWhere.AND = searchWords.map(word => {
-            const orConditions: any[] = [
+    if (searchTerms.length > 0) {
+      // Check if any terms are multi-word phrases
+      const phrases = searchTerms.filter(term => term.includes(' '));
+      const singleWords = searchTerms.filter(term => !term.includes(' '));
+      
+      const conditions: any[] = [];
+      
+      // For phrases, search for exact phrase match (higher priority)
+      if (phrases.length > 0) {
+        phrases.forEach(phrase => {
+          conditions.push({
+            OR: [
+              { title: { contains: phrase, mode: 'insensitive' } },
+              { summary: { contains: phrase, mode: 'insensitive' } },
+              { content: { 
+                OR: [
+                  { text: { contains: phrase, mode: 'insensitive' } },
+                  { ocrText: { contains: phrase, mode: 'insensitive' } },
+                ]
+              }},
+            ]
+          });
+        });
+      }
+      
+      // For single words, use AND logic (all words must match somewhere)
+      if (singleWords.length > 0) {
+        conditions.push({
+          AND: singleWords.map(word => ({
+            OR: [
               { title: { contains: word, mode: 'insensitive' } },
               { summary: { contains: word, mode: 'insensitive' } },
-            ];
-            
-            const contentOr: any[] = [
-              { text: { contains: word, mode: 'insensitive' } },
-              { ocrText: { contains: word, mode: 'insensitive' } },
-            ];
-            
-            orConditions.push({ content: { OR: contentOr } });
-            return { OR: orConditions };
-          });
-        }
+              { content: { 
+                OR: [
+                  { text: { contains: word, mode: 'insensitive' } },
+                  { ocrText: { contains: word, mode: 'insensitive' } },
+                ]
+              }},
+            ]
+          }))
+        });
       }
+      
+      // If we have both phrases and words, use OR between phrase match and word match
+      // This allows finding items that match the phrase OR all the words
+      if (phrases.length > 0 && singleWords.length > 0) {
+        keywordWhere.OR = conditions;
+      } else if (conditions.length > 0) {
+        keywordWhere.AND = conditions;
+      }
+    }
+  }
 
   const items = await prisma.item.findMany({
         where: keywordWhere,

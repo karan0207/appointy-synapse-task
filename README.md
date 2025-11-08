@@ -1,254 +1,247 @@
 # Project Synapse
 
-**An intelligent second brain for capturing, organizing, and retrieving information.**
+A personal second brain app that helps you capture, organize, and find your stuff using AI. Think of it like a smart notebook that actually understands what you're looking for.
 
-Synapse helps you capture text notes, web links, and images, automatically enriches them with AI-powered summaries and classifications, and lets you search through everything using natural language queries. Think of it as your personal knowledge base that understands what you're looking for, not just matching keywords.
+## What This Does
 
-## What It Does
+You know how you save links, take notes, and upload images but then can never find them later? This solves that. You can:
 
-### 🎯 Core Features
+- **Save anything**: Text notes, web links, images - just dump it in
+- **AI magic happens**: It automatically summarizes things, figures out what type of content it is, and makes it searchable
+- **Find stuff naturally**: Search for "cooking tips" and it'll find recipes even if they don't have those exact words. Upload a photo of a monkey and search "monkey" later - it'll find it
+- **Nice UI**: Clean grid view of all your stuff with previews
 
-- **Capture Anything**: Add text notes, save web links, or upload images
-- **AI-Powered Processing**: Automatic summarization, content classification, and smart tagging
-- **Semantic Search**: Find content by meaning, not just keywords. Ask "cooking tips" and find recipes even if they don't contain those exact words
-- **Image Understanding**: Upload images and search for them by what's in them (e.g., "monkey" finds images with monkeys, even without text)
-- **Organized View**: Beautiful grid layout showing all your captured items with previews
-- **User Management**: Secure authentication, profile management, and password changes
+## What We Built This With
 
-### 🧠 How It Works
+Here's the tech stack we used:
 
-1. **Capture**: You add content through a simple interface
-2. **Process**: Background worker enriches content with AI (summaries, classifications, embeddings)
-3. **Search**: Use natural language to find what you're looking for
-4. **Retrieve**: Get relevant results ranked by relevance
+**Frontend:**
+- React with TypeScript - for the UI
+- Tailwind CSS - for styling
+- Vite - for fast development
 
-## Tech Stack
+**Backend:**
+- Express.js with TypeScript - REST API
+- PostgreSQL - main database (using Prisma ORM)
+- Redis - for background job queues and sessions
+- BullMQ - handles async processing
 
-- **Frontend**: React + TypeScript + Tailwind CSS
-- **Backend**: Express.js + TypeScript
-- **Worker**: BullMQ + Redis for async processing
-- **Database**: PostgreSQL with Prisma ORM
-- **AI**: OpenAI API (or LocalAI for self-hosted)
-- **Search**: Hybrid semantic + keyword search with vector embeddings
+**AI Stuff:**
+- OpenAI API - for summaries, embeddings, and image descriptions
+- LocalAI - optional self-hosted alternative (runs in Docker)
+- In-memory vector store - for semantic search (can swap to Qdrant/Pinecone later)
 
-## Getting Started
+**Other:**
+- Docker & Docker Compose - for running databases locally
+- Tesseract.js - OCR for extracting text from images
 
-### Prerequisites
+## Installation
 
-- **Node.js** >= 18.0.0
-- **npm** >= 9.0.0
-- **Docker** and **Docker Compose** (for local database and Redis)
+### What You Need First
 
-### Step 1: Clone and Install
+- Node.js 18+ and npm 9+
+- Docker Desktop (for PostgreSQL and Redis)
+
+### Step 1: Get the Code
 
 ```bash
-git clone <repository-url>
+git clone <your-repo-url>
 cd secondbrain
 npm install
 ```
 
-This installs dependencies for all workspaces (client, server, worker, shared).
+This installs everything for all the parts (frontend, backend, worker, shared code).
 
-### Step 2: Start Infrastructure
+### Step 2: Start the Databases
 
-Start PostgreSQL and Redis using Docker Compose:
+We use Docker to run PostgreSQL and Redis locally. Just run:
 
 ```bash
 docker-compose up -d
 ```
 
 This starts:
-- PostgreSQL on `localhost:5432`
-- Redis on `localhost:6379`
-- LocalAI (optional) on `localhost:8080`
+- PostgreSQL on port 5432
+- Redis on port 6379
+- LocalAI on port 8080 (optional, only if you want self-hosted AI)
 
-### Step 3: Setup Environment Variables
+Wait a few seconds for them to start up. You can check with `docker ps` to see if they're running.
 
-Create `.env` files in each service directory:
+### Step 3: Set Up Environment Variables
 
-**server/.env:**
+Create a single `.env` file in the root directory. Copy the example file:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` and update the values as needed:
+
 ```env
+# Database
 DATABASE_URL="postgresql://synapse:synapse_dev_password@localhost:5432/synapse_db"
+
+# Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
+
+# Server
 PORT=3001
 NODE_ENV=development
-SESSION_SECRET=your_random_secret_here_change_in_production
+SESSION_SECRET=dev-secret-change-in-production
 CLIENT_URL=http://localhost:5173
 
-# OpenAI Configuration (choose one)
-# Option 1: Use OpenAI API
-OPENAI_API_KEY=sk-your-openai-key-here
+# OpenAI (optional - for AI features)
+# Get a key from https://openai.com
+OPENAI_API_KEY=sk-your-key-here
 
-# Option 2: Use LocalAI (self-hosted, free)
+# OR if using LocalAI instead (self-hosted):
 # OPENAI_API_KEY=not-needed
 # OPENAI_API_BASE=http://localhost:8080/v1
 ```
 
-**worker/.env:**
-```env
-DATABASE_URL="postgresql://synapse:synapse_dev_password@localhost:5432/synapse_db"
-REDIS_HOST=localhost
-REDIS_PORT=6379
-API_URL=http://localhost:3001
+**Note:** The client doesn't need environment variables as it uses Vite's proxy configuration.
 
-# Same OpenAI configuration as server
-OPENAI_API_KEY=sk-your-openai-key-here
-# or for LocalAI:
-# OPENAI_API_KEY=not-needed
-# OPENAI_API_BASE=http://localhost:8080/v1
-```
+### Step 4: Set Up the Database
 
-**client/.env:**
-```env
-VITE_API_URL=http://localhost:3001
-```
-
-### Step 4: Setup Database
-
-Run database migrations:
+Run the migrations to create all the tables:
 
 ```bash
 npm run db:migrate
 ```
 
-This creates all necessary tables in PostgreSQL.
+This creates the users, items, content, media, and embeddings tables in PostgreSQL.
 
-### Step 5: Start Development Servers
+### Step 5: Start Everything
 
-Start all services in development mode:
+Now start all the services:
 
 ```bash
 npm run dev
 ```
 
-This starts:
-- **Client**: `http://localhost:5173` (React frontend)
-- **Server**: `http://localhost:3001` (Express API)
-- **Worker**: Background job processor
+This fires up:
+- **Frontend** at `http://localhost:5173` - open this in your browser
+- **API server** at `http://localhost:3001` - handles requests
+- **Worker** - processes items in the background (you won't see this, but it's working)
 
-Or start individually:
+If you want to run them separately:
 ```bash
-npm run dev:client   # Frontend only
-npm run dev:server   # API only
-npm run dev:worker   # Worker only
+npm run dev:client   # Just the frontend
+npm run dev:server   # Just the API
+npm run dev:worker   # Just the worker
 ```
 
-### Step 6: Create Your First Account
+### Step 6: Create an Account
 
-1. Open `http://localhost:5173` in your browser
-2. Click "Sign Up" and create an account
-3. Start capturing content!
+1. Go to `http://localhost:5173`
+2. Click "Sign Up" and make an account
+3. Start adding stuff!
+
+## How It Works
+
+1. **You add content** - text, links, or images through the web interface
+2. **It gets queued** - the server saves it and puts a job in Redis
+3. **Worker processes it** - background worker picks up the job, uses AI to summarize/classify, generates embeddings
+4. **You search** - type natural language queries, it finds stuff by meaning using vector similarity
 
 ## Project Structure
 
 ```
 secondbrain/
-├── client/          # React frontend application
-│   ├── src/
-│   │   ├── components/    # Reusable UI components
-│   │   ├── pages/         # Page components
-│   │   ├── hooks/         # Custom React hooks
-│   │   └── context/       # React context providers
-│   └── package.json
+├── client/          # React frontend
+│   └── src/
+│       ├── components/    # UI components
+│       ├── pages/         # Page views
+│       ├── hooks/         # React hooks
+│       └── context/       # Auth context, etc.
 │
-├── server/          # Express.js API server
-│   ├── src/
-│   │   ├── controllers/   # Request handlers
-│   │   ├── routes/         # API route definitions
-│   │   ├── services/       # Business logic
-│   │   ├── middleware/     # Express middleware
-│   │   └── config/         # Configuration files
-│   └── package.json
+├── server/          # Express API
+│   └── src/
+│       ├── controllers/   # Request handlers
+│       ├── routes/         # API endpoints
+│       ├── services/       # Business logic (vector DB, etc.)
+│       └── config/         # Database, Redis, session setup
 │
 ├── worker/          # Background job processor
-│   ├── src/
-│   │   ├── jobs/          # Job processors
-│   │   ├── services/      # Processing services
-│   │   └── queue/         # Queue configuration
-│   └── package.json
+│   └── src/
+│       ├── jobs/          # Job handlers (process-item.ts)
+│       ├── services/      # OpenAI, metadata extraction
+│       └── queue/         # BullMQ setup
 │
 ├── shared/          # Shared TypeScript types
-│   └── package.json
 │
-├── docker-compose.yml    # Docker services configuration
-├── package.json          # Root workspace configuration
-└── README.md             # This file
+└── docker-compose.yml    # Docker services
 ```
 
-## Available Scripts
+## Useful Commands
 
-- `npm run dev` - Start all services in development mode
-- `npm run build` - Build all services for production
+- `npm run dev` - Start everything
+- `npm run build` - Build for production
 - `npm run db:migrate` - Run database migrations
-- `npm run db:studio` - Open Prisma Studio (database GUI)
-- `npm run lint` - Lint all code
-- `npm run format` - Format all code with Prettier
-
-## Features in Detail
-
-### Content Capture
-- **Text Notes**: Quick capture with instant storage
-- **Web Links**: Automatic metadata extraction (title, description, images)
-- **File Uploads**: Drag-and-drop interface for images and documents
-
-### AI Processing
-- **Summarization**: GPT-3.5 generates concise summaries
-- **Classification**: Automatic content type detection
-- **Embeddings**: Vector representations for semantic search
-- **Vision**: Image descriptions using GPT-4 Vision API
-
-### Search
-- **Natural Language**: Ask questions in plain English
-- **Semantic Matching**: Finds conceptually similar content
-- **Type Filtering**: Automatically detects and filters by content type
-- **Hybrid Results**: Combines semantic and keyword search
+- `npm run db:studio` - Open Prisma Studio (database GUI - super useful!)
+- `npm run lint` - Check code style
+- `npm run format` - Auto-format code
 
 ## Configuration Options
 
-### Using OpenAI API
-Set `OPENAI_API_KEY` in your `.env` files. This provides:
+### Using OpenAI (Recommended)
+
+Get an API key from OpenAI and put it in your `.env` files. This gives you:
 - Text summarization
 - Content classification
-- Embedding generation
-- Image descriptions (vision models)
+- Embedding generation for search
+- Image descriptions
 
-### Using LocalAI (Self-Hosted)
-Set `OPENAI_API_BASE=http://localhost:8080/v1` and download models. See `docker-compose.yml` for LocalAI setup.
+### Using LocalAI (Free, Self-Hosted)
 
-### Without AI
-The app works without AI, but with limited features:
-- No automatic summaries
-- No content classification
-- No semantic search
-- Basic keyword search only
+If you don't want to pay for OpenAI, you can use LocalAI. It's already in the docker-compose.yml. Just:
+1. Set `OPENAI_API_BASE=http://localhost:8080/v1` in your `.env` files
+2. Download models (see the setup scripts in the repo)
+3. It'll work the same way, just slower
+
+**Vision Model Fallback**: If LocalAI vision model isn't available, the system will automatically fall back to OpenAI's vision API (if `OPENAI_API_KEY` is set). This means you can:
+- Use LocalAI for embeddings (free)
+- Use OpenAI for vision descriptions (optional fallback)
+- Or use both - LocalAI first, OpenAI as backup
+
+### Running Without AI
+
+The app works without AI, but you lose:
+- Automatic summaries
+- Content classification
+- Semantic search (only keyword search works)
 
 ## Troubleshooting
 
-### Database Connection Issues
-- Ensure Docker containers are running: `docker-compose ps`
-- Check database URL in `.env` matches docker-compose.yml
-- Verify PostgreSQL is healthy: `docker-compose logs postgres`
+**Database won't connect?**
+- Make sure Docker is running: `docker ps`
+- Check the database URL matches what's in docker-compose.yml
+- Try: `docker-compose logs postgres`
 
-### Redis Connection Issues
-- Check Redis is running: `docker-compose ps`
-- Verify Redis port 6379 is available
-- Check Redis logs: `docker-compose logs redis`
+**Redis issues?**
+- Check it's running: `docker-compose ps`
+- Make sure port 6379 isn't taken by something else
 
-### Worker Not Processing
-- Ensure worker service is running: `npm run dev:worker`
-- Check Redis connection in worker logs
-- Verify OpenAI API key is set (if using AI features)
+**Worker not processing items?**
+- Make sure the worker is running: `npm run dev:worker`
+- Check Redis connection in the worker logs
+- Verify your OpenAI API key is set (if using AI)
 
-### Search Not Working
-- Ensure embeddings are generated (check worker logs)
-- Verify OpenAI API key is configured
-- Check vector database has stored embeddings
+**Search not working?**
+- Items need to be processed first (check worker logs)
+- Make sure embeddings are being generated
+- The worker needs to run to create embeddings
 
-## License
+**Items stuck in "PENDING"?**
+- The worker needs to be running to process them
+- Check worker logs for errors
+- Make sure Redis is connected
 
-[Add your license here]
+## Notes
 
-## Contributing
+- The vector database is currently in-memory, so embeddings are lost on server restart. For production, you'd want to swap it for Qdrant or Pinecone.
+- File uploads are stored locally in `server/uploads/` by default. For production, you'd want to use S3 or similar.
+- Sessions are stored in Redis, so they persist across server restarts.
 
-[Add contribution guidelines here]
+That's it! If something's broken, check the logs and make sure all three services (client, server, worker) are running.

@@ -50,4 +50,6 @@ migrations/*.sql
 
 # Uploads (local development)
 uploads/
-
+.specstory/
+.gitignore
+.cursorindexingignore

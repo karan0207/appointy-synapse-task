@@ -1,0 +1,19 @@
+name: nomic-embed-text
+# Nomic Embed Text v1.5 - Embedding model for semantic search
+# https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF
+
+# Use llama-cpp backend for GGUF models
+backend: llama-cpp
+embeddings: true
+
+parameters:
+  model: nomic-embed-text.gguf
+
+# Embedding-specific settings
+f16: true
+mmap: true
+embedding: true
+
+# Context and threading
+context_size: 2048
+threads: 4

@@ -2,9 +2,12 @@
 // Ensures all required environment variables are present
 
 import dotenv from 'dotenv';
+import path from 'path';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables from root .env file
+// Use process.cwd() to get project root (where npm commands run from)
+const rootEnvPath = path.resolve(process.cwd(), '.env');
+dotenv.config({ path: rootEnvPath });
 
 interface EnvironmentConfig {
   // Database

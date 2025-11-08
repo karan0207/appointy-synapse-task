@@ -3,12 +3,15 @@
 
 import { Worker } from 'bullmq';
 import dotenv from 'dotenv';
+import path from 'path';
 import { redisConnection, QUEUE_NAMES } from './config/redis.js';
 import { processItemJob } from './jobs/process-item.js';
 import type { ProcessItemJobData } from './queue/index.js';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables from root .env file
+// Use process.cwd() to get project root (where npm commands run from)
+const rootEnvPath = path.resolve(process.cwd(), '.env');
+dotenv.config({ path: rootEnvPath });
 
 console.log('🔧 Starting worker...');
 

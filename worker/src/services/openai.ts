@@ -113,68 +113,152 @@ export async function analyzeText(text: string): Promise<TextAnalysis> {
 
 /**
  * Describe what's in an image using vision models
- * This allows searching for images by their content, not just text
+ * Supports both OpenAI (gpt-4o) and LocalAI (llava-vision)
+ * Falls back to OpenAI if LocalAI is unavailable (when OPENAI_API_KEY is provided)
  */
 export async function describeImage(imageUrl: string): Promise<string> {
   try {
-    // Check if we're using LocalAI (which may not support vision)
-    const isLocalAI = process.env.OPENAI_API_BASE?.includes('localhost:8080') || 
+    // Check if we're using LocalAI
+    const isLocalAI = process.env.OPENAI_API_BASE?.includes('localhost:8080') ||
                       process.env.OPENAI_API_BASE?.includes('127.0.0.1:8080');
     
-    if (isLocalAI) {
-      console.log('[OpenAI] ⚠️  Vision models not supported with LocalAI, skipping image description');
-      return '';
-    }
+    // Check if OpenAI API key is available for fallback
+    const hasOpenAIKey = process.env.OPENAI_API_KEY && 
+                         process.env.OPENAI_API_KEY !== 'not-needed-for-localai' &&
+                         process.env.OPENAI_API_KEY !== 'your_openai_api_key_here';
 
     // Fetch image and convert to base64
     const imageResponse = await fetch(imageUrl);
     if (!imageResponse.ok) {
       throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
     }
-    
+
     const imageBuffer = await imageResponse.arrayBuffer();
     const base64Image = Buffer.from(imageBuffer).toString('base64');
     const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
 
-    // Use vision model to describe the image
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o', // or 'gpt-4-vision-preview' for older models
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a helpful assistant that describes images in detail. Describe what you see in the image, including objects, people, animals, text, colors, and any notable features. Be specific and concise (2-3 sentences).',
-        },
-        {
-          role: 'user',
-          content: [
+    let response;
+
+    // Try LocalAI first if configured
+    if (isLocalAI) {
+      console.log('[OpenAI] Attempting LocalAI vision model (llava-vision)');
+
+      try {
+        response = await openai.chat.completions.create({
+          model: 'llava-vision',
+          messages: [
             {
-              type: 'text',
-              text: 'Describe what you see in this image in detail.',
-            },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:${mimeType};base64,${base64Image}`,
-              },
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: 'Describe what you see in this image in detail, including objects, people, animals, text, colors, and any notable features. Be specific and concise (2-3 sentences).',
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:${mimeType};base64,${base64Image}`,
+                  },
+                },
+              ],
             },
           ],
-        },
-      ],
-      max_tokens: 200,
-      temperature: 0.3,
-    });
+          max_tokens: 200,
+          temperature: 0.3,
+        });
+        
+        const description = response.choices[0]?.message?.content?.trim() || '';
+        console.log(`[OpenAI] ✓ Image described with LocalAI: ${description.substring(0, 100)}...`);
+        return description;
+      } catch (localaiError: any) {
+        // If LocalAI fails, try OpenAI fallback if available
+        if (hasOpenAIKey && !isLocalAI) {
+          // We're already using OpenAI base URL, so this shouldn't happen
+          throw localaiError;
+        }
+        
+        // Check if it's a model not found error
+        const isModelNotFound = localaiError?.message?.includes('not found') ||
+                                localaiError?.message?.includes('llava-vision') ||
+                                localaiError?.message?.includes('no backends found') ||
+                                localaiError?.message?.includes('could not load model');
+        
+        if (isModelNotFound && hasOpenAIKey) {
+          console.warn('[OpenAI] ⚠️  LocalAI vision model not available, falling back to OpenAI');
+          // Fall through to OpenAI fallback
+        } else if (isModelNotFound) {
+          console.warn('[OpenAI] ⚠️  LocalAI vision model not loaded');
+          console.warn('[OpenAI] 💡 Options:');
+          console.warn('[OpenAI]    - Run setup script: ./setup-localai-models.ps1 (or .sh)');
+          console.warn('[OpenAI]    - Or set OPENAI_API_KEY for OpenAI fallback');
+          return '';
+        } else {
+          // Other error, try OpenAI fallback if available
+          if (hasOpenAIKey) {
+            console.warn('[OpenAI] ⚠️  LocalAI vision failed, falling back to OpenAI');
+            // Fall through to OpenAI fallback
+          } else {
+            throw localaiError;
+          }
+        }
+      }
+    }
 
-    const description = response.choices[0]?.message?.content?.trim() || '';
-    console.log(`[OpenAI] ✓ Image described: ${description.substring(0, 100)}...`);
-    return description;
-  } catch (error: any) {
-    // If vision model is not available, fall back gracefully
-    if (error?.message?.includes('gpt-4o') || error?.message?.includes('vision')) {
-      console.warn('[OpenAI] ⚠️  Vision model not available, skipping image description');
-      console.warn('[OpenAI] 💡 To enable image descriptions, use OpenAI API with gpt-4o or gpt-4-vision-preview');
+    // Use OpenAI (either as primary or fallback)
+    if (hasOpenAIKey) {
+      console.log('[OpenAI] Using OpenAI vision model (gpt-4o)');
+
+      // Create OpenAI client with original API endpoint
+      const openaiClient = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        baseURL: 'https://api.openai.com/v1',
+      });
+
+      response = await openaiClient.chat.completions.create({
+        model: 'gpt-4o', // or 'gpt-4-vision-preview' for older models
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful assistant that describes images in detail. Describe what you see in the image, including objects, people, animals, text, colors, and any notable features. Be specific and concise (2-3 sentences).',
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Describe what you see in this image in detail.',
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Image}`,
+                },
+              },
+            ],
+          },
+        ],
+        max_tokens: 200,
+        temperature: 0.3,
+      });
+
+      const description = response.choices[0]?.message?.content?.trim() || '';
+      console.log(`[OpenAI] ✓ Image described with OpenAI: ${description.substring(0, 100)}...`);
+      return description;
+    } else {
+      console.warn('[OpenAI] ⚠️  No vision model available');
+      console.warn('[OpenAI] 💡 Set OPENAI_API_KEY to use OpenAI vision, or configure LocalAI');
       return '';
     }
+  } catch (error: any) {
     console.error('[OpenAI] Error describing image:', error);
+    
+    // Provide helpful error messages
+    if (error?.message?.includes('gpt-4o') || error?.message?.includes('vision')) {
+      console.warn('[OpenAI] 💡 OpenAI vision requires:');
+      console.warn('[OpenAI]    - Valid OPENAI_API_KEY');
+      console.warn('[OpenAI]    - API access to gpt-4o model');
+    }
+    
     return '';
   }
 }

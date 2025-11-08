@@ -1,0 +1,44 @@
+name: llava-vision
+# LLaVA 1.6 Vision Model for Image Description (Larger, better quality)
+# This model enables LocalAI to describe images for semantic search
+# https://huggingface.co/cjpais/llava-1.6-mistral-7b-gguf
+
+# Backend configuration
+backend: llama-cpp
+# Vision-specific parameters
+context_size: 2048
+f16: true
+
+# Model parameters
+parameters:
+  model: llava-v1.6-mistral-7b.Q4_K_M.gguf
+  # Vision model requires the mmproj file for image understanding
+  mmproj: llava-v1.6-mistral-7b-mmproj-Q4_0.gguf
+
+# Generation settings for image descriptions
+temperature: 0.3
+top_k: 40
+top_p: 0.95
+max_tokens: 200
+
+# Function configuration
+function:
+  # Disable function calling for vision model
+  disable_no_action: true
+
+# Template for image description
+template:
+  chat_message: |
+    <|im_start|>system
+    You are a helpful assistant that describes images in detail. Describe what you see in the image, including objects, people, animals, text, colors, and any notable features. Be specific and concise (2-3 sentences).<|im_end|>
+    <|im_start|>user
+    {{.Input}}<|im_end|>
+    <|im_start|>assistant
+  completion: |
+    {{.Input}}
+
+# Roles for chat completion
+roles:
+  assistant: assistant
+  system: system
+  user: user

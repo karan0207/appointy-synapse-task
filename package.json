@@ -34,7 +34,9 @@
     "eslint-config-airbnb-typescript": "^17.1.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.29.1",
+    "openai": "^4.24.1",
     "prettier": "^3.2.4",
+    "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   },
   "engines": {

@@ -48,12 +48,49 @@ export default function ItemCard({ item }: ItemCardProps) {
   };
 
   const getPreviewText = () => {
+    // For other types, show content text as before
     if (item.content?.text) {
       return item.content.text.substring(0, 200);
     }
     return item.title || 'No content';
   };
 
+  // For IMAGE type, show minimal view: only image and filename
+  if (item.type === 'IMAGE') {
+    return (
+      <div className="card hover:shadow-md transition-shadow cursor-pointer p-0 overflow-hidden">
+        {/* Image Preview */}
+        {item.media && item.media.length > 0 && item.media[0].s3Url ? (
+          <>
+            <img
+              src={item.media[0].s3Url}
+              alt={item.title || 'Image'}
+              className="w-full h-64 object-cover"
+              onError={(e) => {
+                // Hide image if it fails to load
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            {/* Filename */}
+            {item.title && (
+              <div className="p-3">
+                <p className="text-sm text-gray-600 truncate" title={item.title}>
+                  {item.title}
+                </p>
+              </div>
+            )}
+          </>
+        ) : (
+          // Fallback if no image URL
+          <div className="p-4 text-center text-gray-400">
+            <p className="text-sm">{item.title || 'Image'}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // For other types, show full card
   return (
     <div className="card hover:shadow-md transition-shadow cursor-pointer">
       {/* Preview Image for Links */}

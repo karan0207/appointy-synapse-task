@@ -180,13 +180,26 @@ async function generateAndStoreEmbedding(itemId: string, item: any): Promise<voi
       textParts.push(`Image Text: ${item.content.ocrText}`);
     }
     
-    // Vision description is crucial for images without text
-    // Check if the text content is actually a vision description (starts with description-like text)
-    if (item.content?.text && item.type === 'IMAGE' && 
-        !item.content.text.startsWith('Image file:') && 
-        !item.content.text.startsWith('http')) {
-      // Likely a vision description
-      textParts.push(`Image Description: ${item.content.text}`);
+    // Vision description is crucial for images - always include it for IMAGE type
+    // The vision description is stored in content.text for images
+    if (item.type === 'IMAGE' && item.content?.text) {
+      // Check if it's a vision description (not a placeholder or URL)
+      if (!item.content.text.startsWith('Image file:') && 
+          !item.content.text.startsWith('http') &&
+          item.content.text.length > 20) { // Vision descriptions are usually longer
+        // This is a vision description from the AI model
+        textParts.push(`Image Description: ${item.content.text}`);
+      }
+    }
+    
+    // Also check summary for vision descriptions (sometimes stored there)
+    if (item.type === 'IMAGE' && item.summary && 
+        !item.summary.startsWith('Image file:') &&
+        !item.summary.startsWith('http') &&
+        item.summary.length > 20 &&
+        !textParts.some(part => part.includes(item.summary))) {
+      // Summary might contain vision description if not already included
+      textParts.push(`Image Description: ${item.summary}`);
     }
     
     // Include HTML content if available (for articles)
@@ -334,21 +347,40 @@ async function processFileItem(itemId: string, item: any): Promise<void> {
       try {
         // Try to use Tesseract.js for OCR if available
         const { createWorker } = await import('tesseract.js');
-        const worker = await createWorker('eng');
-        
-        // Download image from storage
+
+        // Download image from storage first
         const imageResponse = await fetch(imageUrl);
         if (!imageResponse.ok) {
           throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
         }
-        
+
+        // Validate that we got actual image data
+        const contentType = imageResponse.headers.get('content-type');
+        if (!contentType?.startsWith('image/')) {
+          throw new Error(`Invalid image content type: ${contentType}`);
+        }
+
         const imageBuffer = await imageResponse.arrayBuffer();
-        
-        // Run OCR and vision description in parallel for better performance
-        const [ocrResult, imageDescription] = await Promise.allSettled([
-          worker.recognize(Buffer.from(imageBuffer)),
-          (async () => {
-            if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key_here') {
+        if (!imageBuffer || imageBuffer.byteLength === 0) {
+          throw new Error('Downloaded image is empty');
+        }
+
+        console.log(`[Worker] Image downloaded successfully (${imageBuffer.byteLength} bytes)`);
+
+        // Get OCR language from environment (default to English)
+        const ocrLanguage = process.env.OCR_LANGUAGE || 'eng';
+        let worker: any = null;
+
+        try {
+          // Create Tesseract worker
+          worker = await createWorker(ocrLanguage);
+          console.log(`[Worker] Tesseract worker created for language: ${ocrLanguage}`);
+
+          // Run OCR and vision description in parallel for better performance
+          // Vision will automatically use LocalAI if available, or fallback to OpenAI if API key is set
+          const [ocrResult, imageDescription] = await Promise.allSettled([
+            worker.recognize(Buffer.from(imageBuffer)),
+            (async () => {
               try {
                 const { describeImage } = await import('../services/openai.js');
                 return await describeImage(imageUrl);
@@ -356,87 +388,117 @@ async function processFileItem(itemId: string, item: any): Promise<void> {
                 console.log('[Worker] Could not describe image with vision model:', error);
                 return '';
               }
-            }
-            return '';
-          })(),
-        ]);
-        
-        await worker.terminate();
-        
-        const text = ocrResult.status === 'fulfilled' ? ocrResult.value.data.text : '';
-        const visionDescription = imageDescription.status === 'fulfilled' && typeof imageDescription.value === 'string' 
-          ? imageDescription.value 
-          : '';
+            })(),
+          ]);
 
-        // Combine OCR text and vision description for better search
-        const combinedDescription = visionDescription 
-          ? (text ? `${text}\n\n${visionDescription}` : visionDescription)
-          : text;
+          const text = ocrResult.status === 'fulfilled' ? ocrResult.value.data.text : '';
+          const visionDescription = imageDescription.status === 'fulfilled' && typeof imageDescription.value === 'string'
+            ? imageDescription.value
+            : '';
 
-        if (text && text.trim()) {
-          console.log(`[Worker] ✓ OCR extracted ${text.length} characters`);
-          
-          // Update content with OCR text
-          await prisma.content.upsert({
-            where: { itemId },
-            update: { 
-              ocrText: text.trim(),
-              // Store vision description in text field if available
-              text: visionDescription || `Image file: ${item.title}`,
-            },
-            create: {
-              itemId,
-              ocrText: text.trim(),
-              text: visionDescription || `Image file: ${item.title}`,
-            },
-          });
-          
-          // Generate summary from combined text if OpenAI is available
-          if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key_here') {
-            try {
-              const { generateSummary } = await import('../services/openai.js');
-              const summaryText = combinedDescription || text.trim();
-              const summary = await generateSummary(summaryText.substring(0, 2000));
-              
-              await prisma.item.update({
-                where: { id: itemId },
-                data: { summary },
-              });
-              
-              console.log(`[Worker] ✓ Generated summary from OCR and vision`);
-            } catch (error) {
-              console.log('[Worker] Could not generate summary:', error);
-            }
+          // Log OCR errors if any
+          if (ocrResult.status === 'rejected') {
+            console.warn('[Worker] OCR processing failed:', ocrResult.reason);
           }
-        } else {
-          console.log('[Worker] No text found in image');
+
+          // Log vision description status
+          if (imageDescription.status === 'rejected') {
+            console.warn('[Worker] Vision description failed:', imageDescription.reason);
+          }
+
+          // Always store vision description - it's crucial for image search
+          // Priority: vision description > OCR text for searchability
+          if (visionDescription && visionDescription.trim()) {
+            console.log(`[Worker] ✓ Vision description: ${visionDescription.substring(0, 100)}...`);
+          }
           
-          // If no OCR text but we have a vision description, use that
-          if (visionDescription) {
-            try {
-              await prisma.content.upsert({
-                where: { itemId },
-                update: { text: visionDescription },
-                create: {
-                  itemId,
-                  text: visionDescription,
-                },
-              });
-              
+          if (text && text.trim()) {
+            console.log(`[Worker] ✓ OCR extracted ${text.length} characters`);
+            
+            // Update content with both OCR text and vision description
+            // Vision description goes in text field (for embeddings/search)
+            // OCR text goes in ocrText field (for reference)
+            await prisma.content.upsert({
+              where: { itemId },
+              update: { 
+                ocrText: text.trim(),
+                // Prioritize vision description for search - it describes what's IN the image
+                text: visionDescription || text.trim() || `Image file: ${item.title}`,
+              },
+              create: {
+                itemId,
+                ocrText: text.trim(),
+                // Vision description is more important for semantic search
+                text: visionDescription || text.trim() || `Image file: ${item.title}`,
+              },
+            });
+            
+            // Generate summary from combined text if OpenAI is available
+            if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key_here') {
+              try {
+                const { generateSummary } = await import('../services/openai.js');
+                // Use vision description as primary, OCR as supplement
+                const summaryText = visionDescription 
+                  ? (text.trim() ? `${visionDescription}\n\nText in image: ${text.trim()}` : visionDescription)
+                  : text.trim();
+                const summary = await generateSummary(summaryText.substring(0, 2000));
+                
+                await prisma.item.update({
+                  where: { id: itemId },
+                  data: { summary },
+                });
+                
+                console.log(`[Worker] ✓ Generated summary from OCR and vision`);
+              } catch (error) {
+                console.log('[Worker] Could not generate summary:', error);
+              }
+            } else if (visionDescription) {
+              // If no OpenAI for summary, use vision description directly
               await prisma.item.update({
                 where: { id: itemId },
                 data: { summary: visionDescription },
               });
-              
-              console.log(`[Worker] ✓ Stored image description from vision model`);
+            }
+          } else {
+            console.log('[Worker] No text found in image via OCR');
+            
+            // If no OCR text but we have a vision description, use that
+            if (visionDescription && visionDescription.trim()) {
+              try {
+                await prisma.content.upsert({
+                  where: { itemId },
+                  update: { text: visionDescription },
+                  create: {
+                    itemId,
+                    text: visionDescription,
+                  },
+                });
+                
+                await prisma.item.update({
+                  where: { id: itemId },
+                  data: { summary: visionDescription },
+                });
+                
+                console.log(`[Worker] ✓ Stored image description from vision model`);
+              } catch (error) {
+                console.log('[Worker] Could not store image description:', error);
+              }
+            }
+          }
+
+          // Note: Vision description is already stored in content.text or summary above
+          // It will be picked up by generateAndStoreEmbedding automatically
+        } finally {
+          // Always terminate the worker to prevent memory leaks
+          if (worker) {
+            try {
+              await worker.terminate();
+              console.log('[Worker] ✓ Tesseract worker cleaned up');
             } catch (error) {
-              console.log('[Worker] Could not store image description:', error);
+              console.warn('[Worker] Error terminating Tesseract worker:', error);
             }
           }
         }
-        
-        // Note: Vision description is already stored in content.text or summary above
-        // It will be picked up by generateAndStoreEmbedding automatically
       } catch (error: any) {
         // If Tesseract fails, log and continue (item will still be saved)
         console.warn(`[Worker] OCR failed (this is okay): ${error.message}`);

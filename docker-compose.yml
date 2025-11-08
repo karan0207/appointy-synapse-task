@@ -42,8 +42,12 @@ services:
       - CONTEXT_SIZE=2048
       - MODELS_PATH=/models
       - DEBUG=true
+      # Vision model preload is optional - comment out if model not downloaded yet
+      # - 'PRELOAD_MODELS=[{"id": "llava-vision", "url": "file:///models/llava-vision.yaml"}]'
     volumes:
       - localai_models:/models
+      # Mount model configuration files
+      - ./localai-models:/models/configs:ro
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:8080/health']
       interval: 30s
